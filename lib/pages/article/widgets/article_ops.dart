@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/models_new/article/article_view/ops.dart';
+import 'package:PiliPlus/pages/article/widgets/reading_settings.dart';
 import 'package:PiliPlus/pages/article/widgets/sliver_list_ext.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/vote.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
@@ -15,11 +16,13 @@ class ArticleOpus extends StatelessWidget {
   const ArticleOpus({
     super.key,
     required this.reverse,
+    this.readingSettings = const ArticleReadingSettings(),
     required this._ops,
     required this.maxWidth,
   });
 
   final bool reverse;
+  final ArticleReadingSettings readingSettings;
   final List<ArticleOps>? _ops;
   final double maxWidth;
 
@@ -37,7 +40,7 @@ class ArticleOpus extends StatelessWidget {
           final item = _ops[index];
           switch (item.insert) {
             case String e:
-              return Text(e);
+              return Text(e, style: readingSettings.textStyle);
             case Insert(:final card):
               if (card != null) {
                 if (card.url?.isNotEmpty == true) {
@@ -91,7 +94,8 @@ class ArticleOpus extends StatelessWidget {
           return Text(e.toString());
         }
       },
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: readingSettings.paragraphSpacing),
     );
   }
 }

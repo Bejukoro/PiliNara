@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:PiliPlus/common/style.dart';
@@ -11,6 +12,10 @@ import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart'
     show tabBarScrollPhysics;
+import 'package:PiliPlus/pages/article/widgets/reading_settings.dart';
+import 'package:PiliPlus/utils/font_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/common/widgets/sliver/sliver_to_box_adapter.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/dynamics/article_content_model.dart' show Pic;
@@ -58,6 +63,37 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
   @override
   dynamic get arguments => {'id': controller.id};
 
+  StreamSubscription<dynamic>? _readingSettingsSubscription;
+  ArticleReadingSettings readingSettings = ArticleReadingSettings.load();
+
+  Future<void> _loadReadingFont() async {
+    final family = readingSettings.fontFamily;
+    if (family == null) return;
+    await FontUtils.loadFontIfNecessary(family);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showReadingSettings() async {
+    setState(() => readingSettings = ArticleReadingSettings.load());
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .9,
+      ),
+      builder: (_) => ArticleReadingSettingsPanel(
+        settings: readingSettings,
+        onChanged: (value) {
+          setState(() => readingSettings = value);
+          value.save().catchError((Object error) {
+            SmartDialog.showToast('阅读设置保存失败，请重试');
+          });
+        },
+      ),
+    );
+  }
+
   UniqueKey? _centerKey;
   bool get reverse => _centerKey != null;
 
@@ -72,6 +108,20 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
       _centerKey = UniqueKey();
     }
     super.initState();
+    _loadReadingFont();
+    _readingSettingsSubscription = GStorage.setting
+        .watch(key: SettingBoxKey.articleReadingSettings)
+        .listen((_) {
+          if (!mounted) return;
+          setState(() => readingSettings = ArticleReadingSettings.load());
+          _loadReadingFont();
+        });
+  }
+
+  @override
+  void dispose() {
+    _readingSettingsSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -104,7 +154,13 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               _buildContent(
-                maxWidth - this.padding.horizontal - 2 * padding - 24,
+                max(
+                  1,
+                  maxWidth -
+                      this.padding.horizontal -
+                      2 * padding -
+                      2 * readingSettings.pageMargin,
+                ),
               ),
               SelectionContainer.disabled(
                 child: SliverToBoxAdapter(
@@ -147,11 +203,15 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
                     bottom: this.padding.bottom + 100,
                   ),
                   sliver: _buildContent(
-                    (maxWidth - this.padding.horizontal) *
-                            flex /
-                            (flex + flex1) -
-                        padding -
-                        32,
+                    max(
+                      1,
+                      (maxWidth - this.padding.horizontal) *
+                              flex /
+                              (flex + flex1) -
+                          padding -
+                          8 -
+                          2 * readingSettings.pageMargin,
+                    ),
                   ),
                 ),
               ],
@@ -185,39 +245,39 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
   }
 
   Widget _buildContent(double maxWidth) => SliverPadding(
-    padding: const .symmetric(horizontal: 12, vertical: 8),
-    sliver: Obx(
-      () {
-        if (controller.isLoaded.value) {
-          final Widget content;
-          late final modules = controller.opusData?.modules;
-          if (controller.opus != null) {
-            // if (kDebugMode) debugPrint('json page');
-            content = OpusContent(
-              opus: controller.opus!,
-              images: controller.images,
-              maxWidth: maxWidth,
-              opusId: controller.id,
+    padding: EdgeInsets.symmetric(
+      horizontal: readingSettings.pageMargin,
+      vertical: 8,
+    ),
+    sliver: Obx(() {
+      if (controller.isLoaded.value) {
+        final Widget content;
+        late final modules = controller.opusData?.modules;
+        if (controller.opus != null) {
+          // if (kDebugMode) debugPrint('json page');
+          content = OpusContent(
+            opus: controller.opus!,
+            images: controller.images,
+            maxWidth: maxWidth,
+            opusId: controller.id,
+            reverse: reverse,
+            readingSettings: readingSettings,
+          );
+        } else if (modules?.moduleBlocked case final moduleBlocked?) {
+          // if (kDebugMode) debugPrint('moduleBlocked');
+          content = SliverToBoxAdapter(
+            child: moduleBlockedItem(context, theme.colorScheme, moduleBlocked),
+          );
+        } else if (controller.articleData?.content != null) {
+          if (controller.articleData?.type == 3) {
+            // json
+            content = ArticleOpus(
               reverse: reverse,
+              ops: controller.articleData?.ops,
+              readingSettings: readingSettings,
+              maxWidth: maxWidth,
             );
-          } else if (modules?.moduleBlocked case final moduleBlocked?) {
-            // if (kDebugMode) debugPrint('moduleBlocked');
-            content = SliverToBoxAdapter(
-              child: moduleBlockedItem(
-                context,
-                theme.colorScheme,
-                moduleBlocked,
-              ),
-            );
-          } else if (controller.articleData?.content != null) {
-            if (controller.articleData?.type == 3) {
-              // json
-              return ArticleOpus(
-                reverse: reverse,
-                ops: controller.articleData?.ops,
-                maxWidth: maxWidth,
-              );
-            }
+          } else {
             // if (kDebugMode) debugPrint('html page');
             final res = parser.parse(controller.articleData!.content!);
             if (res.body!.children.isEmpty) {
@@ -226,6 +286,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
                   context: context,
                   html: controller.articleData!.content!,
                   maxWidth: maxWidth,
+                  readingSettings: readingSettings,
                 ),
               );
             } else {
@@ -237,50 +298,60 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
                     context: context,
                     element: res.body!.children[index],
                     maxWidth: maxWidth,
+                    readingSettings: readingSettings,
                   );
                 },
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) =>
+                    SizedBox(height: readingSettings.paragraphSpacing),
               );
             }
-          } else {
-            content = const SliverToBoxAdapter(child: Text('NULL'));
           }
-
-          final isOpus = controller.type != 'read';
-
-          return SliverMainAxisGroup(
-            slivers: [
-              if (isOpus)
-                if (modules?.moduleTop?.display?.album?.pics case final pics?
-                    when pics.isNotEmpty)
-                  SliverToBoxAdapter(child: _buildImageGallery(pics)),
-              if (controller.summary.title != null)
-                SliverToBoxWithVisibilityAdapter(
-                  onVisibilityChanged: controller.showTitle.call,
-                  child: Text(
-                    controller.summary.title!,
-                    style: const TextStyle(fontSize: 17, fontWeight: .bold),
-                  ),
-                ),
-              SliverToBoxAdapter(child: _buildAuthor()),
-              if (isOpus) ...?modules?.moduleTribee?.items?.map(_buildTribee),
-              if (isOpus && modules?.moduleCollection != null)
-                SliverToBoxAdapter(
-                  child: SelectionContainer.disabled(
-                    child: opusCollection(
-                      theme.colorScheme,
-                      modules!.moduleCollection!,
-                    ),
-                  ),
-                ),
-              content,
-            ],
-          );
+        } else {
+          content = const SliverToBoxAdapter(child: Text('NULL'));
         }
 
-        return const SliverToBoxAdapter();
-      },
-    ),
+        final isOpus = controller.type != 'read';
+
+        return SliverMainAxisGroup(
+          slivers: [
+            if (isOpus)
+              if (modules?.moduleTop?.display?.album?.pics case final pics?
+                  when pics.isNotEmpty)
+                SliverToBoxAdapter(child: _buildImageGallery(pics)),
+            if (controller.summary.title != null)
+              SliverToBoxWithVisibilityAdapter(
+                onVisibilityChanged: controller.showTitle.call,
+                child: Text(
+                  controller.summary.title!,
+                  style: TextStyle(
+                    fontSize: readingSettings.fontSize * 17 / 16,
+                    height: readingSettings.lineHeight,
+                    fontFamily: readingSettings.fontFamily,
+                    fontWeight: .bold,
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(child: _buildAuthor()),
+            if (isOpus) ...?modules?.moduleTribee?.items?.map(_buildTribee),
+            if (isOpus && modules?.moduleCollection != null)
+              SliverToBoxAdapter(
+                child: SelectionContainer.disabled(
+                  child: opusCollection(
+                    theme.colorScheme,
+                    modules!.moduleCollection!,
+                  ),
+                ),
+              ),
+            DefaultTextStyle.merge(
+              style: readingSettings.textStyle,
+              child: content,
+            ),
+          ],
+        );
+      }
+
+      return const SliverToBoxAdapter();
+    }),
   );
 
   Widget _buildTribee(Tribee tribee) {
@@ -338,6 +409,11 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
       return const SizedBox.shrink();
     }),
     actions: [
+      IconButton(
+        tooltip: '阅读设置',
+        onPressed: _showReadingSettings,
+        icon: const Icon(Icons.text_fields),
+      ),
       const SizedBox(width: 4),
       if (!isPortrait) ratioWidget(maxWidth),
       IconButton(

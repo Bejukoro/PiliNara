@@ -13,6 +13,7 @@ import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/dynamics/article_content_model.dart'
     show ArticleContentModel, Rich, Style, Word, Node;
 import 'package:PiliPlus/models/dynamics/result.dart';
+import 'package:PiliPlus/pages/article/widgets/reading_settings.dart';
 import 'package:PiliPlus/pages/article/widgets/sliver_list_ext.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/vote.dart';
 import 'package:PiliPlus/utils/app_scheme.dart';
@@ -41,6 +42,7 @@ class OpusContent extends StatelessWidget {
   final double maxWidth;
   final String opusId;
   final bool reverse;
+  final ArticleReadingSettings readingSettings;
 
   const OpusContent({
     super.key,
@@ -49,9 +51,10 @@ class OpusContent extends StatelessWidget {
     required this.maxWidth,
     required this.opusId,
     required this.reverse,
+    this.readingSettings = const ArticleReadingSettings(),
   });
 
-  static InlineSpan _node2Widget({
+  InlineSpan _node2Widget({
     required Node item,
     bool isQuote = false,
     required String opusId,
@@ -236,7 +239,7 @@ class OpusContent extends StatelessWidget {
     }
   }
 
-  static TextStyle _getStyle(
+  TextStyle _getStyle(
     Style? style, {
     Color? color,
     double? fontSize,
@@ -248,10 +251,12 @@ class OpusContent extends StatelessWidget {
     fontStyle: style?.italic == true ? .italic : null,
     fontWeight: style?.bold == true ? .bold : null,
     color: color,
-    fontSize: style?.fontSize ?? fontSize ?? 16,
+    fontSize: (style?.fontSize ?? fontSize ?? 16) * readingSettings.fontSize / 16,
+    height: readingSettings.lineHeight,
+    fontFamily: readingSettings.fontFamily,
   );
 
-  static TextSpan _getSpan(
+  TextSpan _getSpan(
     Word? word, {
     Color? defaultColor,
     required ValueGetter<double> surfaceLuminance,
@@ -1248,7 +1253,8 @@ class OpusContent extends StatelessWidget {
           );
         }
       },
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: readingSettings.paragraphSpacing),
     );
   }
 }

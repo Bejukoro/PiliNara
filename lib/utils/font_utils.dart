@@ -303,6 +303,16 @@ abstract final class FontUtils {
   /// 避免设置项指向一个已经不存在的字体
   static Future<void> _resetSelection(Set<String> removed) async {
     final updates = <String, dynamic>{};
+    final readingSettings = GStorage.setting.get(
+      SettingBoxKey.articleReadingSettings,
+    );
+    if (readingSettings is Map &&
+        removed.contains(readingSettings['fontFamily'])) {
+      updates[SettingBoxKey.articleReadingSettings] = {
+        ...readingSettings,
+        'fontFamily': null,
+      };
+    }
     if (removed.contains(Pref.appFont)) {
       updates[SettingBoxKey.appFont] = null;
     }

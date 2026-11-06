@@ -17,6 +17,10 @@ if (!isBuiltInKotlinEnabled) {
     apply(plugin = "org.jetbrains.kotlin.android")
 }
 
+val readingTest = providers.gradleProperty("readingTest")
+    .map(String::toBoolean)
+    .getOrElse(false)
+
 android {
     namespace = "com.example.pilinara"
     compileSdk = 37
@@ -28,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.pilinara"
+        applicationId = if (readingTest) "com.bejukoro.pilinara.readingtest" else "com.example.pilinara"
         minSdk = flutter.minSdkVersion
         targetSdk = 37
         versionCode = flutter.versionCode
@@ -55,7 +59,7 @@ android {
     }
 
     buildFeatures {
-        if (project.hasProperty("dev")) {
+        if (project.hasProperty("dev") || readingTest) {
             resValues = true
         }
     }
@@ -65,6 +69,10 @@ android {
             signingConfig = config ?: signingConfigs["debug"]
         }
         release {
+            if (readingTest) {
+                resValue("string", "app_name", "PiliNara 阅读测试")
+                resValue("string", "shortcut_action", "com.bejukoro.pilinara.readingtest.SHORTCUT")
+            }
             if (project.hasProperty("dev")) {
                 applicationIdSuffix = ".dev"
                 resValue(

@@ -1,3 +1,4 @@
+import 'package:PiliPlus/pages/article/widgets/reading_settings.dart';
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/widgets/image_viewer/hero.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
@@ -17,6 +18,7 @@ Widget htmlRender({
   int? imgCount,
   List<String>? imgList,
   required double maxWidth,
+  ArticleReadingSettings readingSettings = const ArticleReadingSettings(),
 }) {
   // if (kDebugMode) debugPrint('htmlRender');
   final extensions = [
@@ -80,9 +82,14 @@ Widget htmlRender({
   ];
   final style = {
     'html': Style(
-      fontSize: FontSize(16),
-      lineHeight: LineHeight.percent(160),
+      fontSize: FontSize(readingSettings.fontSize),
+      lineHeight: LineHeight.percent(readingSettings.lineHeight * 100),
+      fontFamily: readingSettings.fontFamily,
       letterSpacing: 0.3,
+    ),
+    '*': Style(
+      fontFamily: readingSettings.fontFamily,
+      lineHeight: LineHeight.percent(readingSettings.lineHeight * 100),
     ),
     'body': Style(margin: Margins.zero, padding: HtmlPaddings.zero),
     'a': Style(
@@ -93,12 +100,13 @@ Widget htmlRender({
       lineHeight: LineHeight.percent(-1),
     ),
     'p': Style(
-      margin: Margins.only(bottom: 4),
+      margin: Margins.only(
+        bottom: element?.localName == 'p'
+            ? 0
+            : readingSettings.paragraphSpacing,
+      ),
     ),
-    'span': Style(
-      fontSize: FontSize.large,
-      height: Height(1.8),
-    ),
+    'span': Style(fontSize: FontSize(readingSettings.fontSize)),
     'div': Style(height: Height.auto()),
     'li > p': Style(
       display: Display.inline,
@@ -109,17 +117,17 @@ Widget htmlRender({
     ),
     'img': Style(margin: Margins.only(top: 4, bottom: 4)),
     'h1,h2': Style(
-      fontSize: FontSize.xLarge,
+      fontSize: FontSize(readingSettings.fontSize * 1.4),
       fontWeight: FontWeight.bold,
       margin: Margins.only(bottom: 8),
     ),
     'h3,h4,h5': Style(
-      fontSize: FontSize(16),
+      fontSize: FontSize(readingSettings.fontSize),
       fontWeight: FontWeight.bold,
       margin: Margins.only(bottom: 4),
     ),
     'figcaption': Style(
-      fontSize: FontSize.large,
+      fontSize: FontSize(readingSettings.fontSize),
       textAlign: TextAlign.center,
     ),
     'strong': Style(fontWeight: FontWeight.bold),
