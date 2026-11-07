@@ -48,7 +48,7 @@
 - 播放页提供全文滚动与当前朗读内容突出显示、封面大小切换、上一段／下一段、倍速、定时关闭，以及同文集文章列表。
 - 语音按段合成并预载后续内容；微软演示语音会合并完整段落以减少调用次数。全文总时长为估算值，并随实际播放逐步校准。云端合成可能产生调用或额度消耗，具体以服务提供方为准。
 
-本 Fork 的改动目前以源码形式提供；下方原项目的 Releases 链接指向上游仓库，不代表包含本 Fork 的新增功能。
+本 Fork 的 Android 发行版可在 [Bejukoro/PiliNara Releases](https://github.com/Bejukoro/PiliNara/releases) 下载，应用名为 **PiliNara Fork**，包名为 `com.bejukoro.pilinara`。下方原项目的 Releases 链接指向上游仓库。
 
 ---
 

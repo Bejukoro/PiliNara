@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = if (readingTest) "com.bejukoro.pilinara.readingtest" else "com.example.pilinara"
+        applicationId = if (readingTest) "com.bejukoro.pilinara.readingtest" else "com.bejukoro.pilinara"
         minSdk = flutter.minSdkVersion
         targetSdk = 37
         versionCode = flutter.versionCode
@@ -66,7 +66,7 @@ android {
 
     buildTypes {
         all {
-            signingConfig = config ?: signingConfigs["debug"]
+            signingConfig = if (name == "release") config else signingConfigs["debug"]
         }
         release {
             if (readingTest) {
@@ -78,7 +78,7 @@ android {
                 resValue(
                     type = "string",
                     name = "app_name",
-                    value = "PiliNara dev",
+                    value = "PiliNara Fork dev",
                 )
             }
             proguardFiles(
@@ -88,6 +88,12 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+        }
+    }
+
+    gradle.taskGraph.whenReady {
+        if (config == null && allTasks.any { it.path == ":app:packageRelease" || it.path == ":app:signReleaseBundle" }) {
+            throw GradleException("Release signing is required. Configure android/key.properties before building a release.")
         }
     }
 
