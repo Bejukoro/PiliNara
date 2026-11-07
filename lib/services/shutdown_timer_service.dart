@@ -3,6 +3,7 @@
 import 'dart:async' show Timer;
 
 import 'package:PiliPlus/models/common/enum_with_label.dart';
+import 'package:PiliPlus/common/widgets/node_slider.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/device_utils.dart';
@@ -47,6 +48,9 @@ class ShutdownTimerService {
   bool _isWaiting = false;
   bool get isWaiting => _isWaiting;
   bool _waitUntilCompleted = false;
+  bool _isAudioTimer = false;
+  bool _audioHandoff = false;
+  bool _deferredShutdown = false;
 
   void _stopTimer() {
     if (_shutdownTimer != null) {
@@ -60,10 +64,14 @@ class ShutdownTimerService {
     _stopTimer();
     _isWaiting = false;
     _durationInMinutes = durationInMinutes;
+    _isAudioTimer = false;
+    _audioHandoff = false;
+    _deferredShutdown = false;
   }
 
-  void _startShutdownTimer(int durationInMinutes) {
+  void _startShutdownTimer(int durationInMinutes, {bool isAudio = false}) {
     reset(durationInMinutes);
+    _isAudioTimer = isAudio;
     if (durationInMinutes == 0) {
       SmartDialog.showToast('取消定时关闭');
       return;
@@ -77,17 +85,28 @@ class ShutdownTimerService {
   }
 
   void _handleShutdown() {
+    _deadline = null;
+    _shutdownTimer = null;
+    if (_isAudioTimer && _audioHandoff) {
+      _deferredShutdown = true;
+      return;
+    }
+    if (_isAudioTimer && onPause == null) {
+      reset();
+      return;
+    }
     switch (_shutdownType) {
       case .pause:
         late final player = PlPlayerController.instance;
         final isPlaying =
-            this.isPlaying?.call() ?? player?.playerStatus.isPlaying ?? false;
+            this.isPlaying?.call() ??
+            (!_isAudioTimer && player?.playerStatus.isPlaying == true);
         if (isPlaying) {
           if (_waitUntilCompleted) {
             _isWaiting = true;
           } else {
             _durationInMinutes = 0;
-            (onPause ?? player?.pause)?.call();
+            (onPause ?? (_isAudioTimer ? null : player?.pause))?.call();
             SmartDialog.showToast('定时时间已到，已暂停');
           }
         }
@@ -95,14 +114,48 @@ class ShutdownTimerService {
         if (_waitUntilCompleted) {
           final isPlaying =
               this.isPlaying?.call() ??
-              PlPlayerController.instance?.playerStatus.isPlaying ??
-              false;
+              (!_isAudioTimer &&
+                  PlPlayerController.instance?.playerStatus.isPlaying == true);
           if (isPlaying) {
             _isWaiting = true;
             return;
           }
         }
         _syncProgressAndExit();
+    }
+  }
+
+  /// Keeps the active audio timer while a new article replaces the current one.
+  bool beginAudioHandoff(VoidCallback owner) {
+    if (!_isAudioTimer || onPause != owner || (!isActive && !_isWaiting)) {
+      return false;
+    }
+    _audioHandoff = true;
+    return true;
+  }
+
+  void completeAudioHandoff() {
+    if (!_audioHandoff) return;
+    _audioHandoff = false;
+    if (_isWaiting) {
+      if (_shutdownType == _ShutdownType.pause) {
+        handleWaiting();
+        onPause?.call();
+      } else {
+        handleWaiting();
+      }
+    } else if (_deferredShutdown) {
+      _deferredShutdown = false;
+      _handleShutdown();
+    }
+  }
+
+  void cancelAudioHandoff() {
+    if (!_audioHandoff) return;
+    _audioHandoff = false;
+    if (_deferredShutdown) {
+      _deferredShutdown = false;
+      _handleShutdown();
     }
   }
 
@@ -118,7 +171,8 @@ class ShutdownTimerService {
   }
 
   void _syncProgressAndExit() {
-    if (PlPlayerController.instance case final player?) {
+    if (!_isAudioTimer && PlPlayerController.instance != null) {
+      final player = PlPlayerController.instance!;
       final res = player.makeHeartBeat(
         player.position.value,
         type: .completed,
@@ -173,8 +227,9 @@ class ShutdownTimerService {
   void _showTimePickerDialog(
     BuildContext context,
     VoidCallback onCountdown,
-    StateSetter setState,
-  ) {
+    StateSetter setState, {
+    bool isAudio = false,
+  }) {
     final values = _parseMinutes(_durationInMinutes);
     var hour = values.$1;
     var minute = values.$2;
@@ -220,7 +275,7 @@ class ShutdownTimerService {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _startShutdownTimer(hour * 60 + minute);
+              _startShutdownTimer(hour * 60 + minute, isAudio: isAudio);
               onCountdown();
               setState(() {});
             },
@@ -234,11 +289,114 @@ class ShutdownTimerService {
     });
   }
 
+  void _showAudioTimerDialog(BuildContext context) {
+    var minutes = _durationInMinutes;
+    const presets = {0, 5, 10, 15, 20, 30, 45, 60, 90, 120};
+    var options = {...presets, minutes}.sorted(Comparable.compare);
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 512),
+      builder: (context) => ShutdownPanel(
+        builder: (context, countdown, onCountdown, setState) {
+          final label = minutes == 0 ? '关闭定时' : _format(minutes);
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '音频定时关闭',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      countdown,
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(label),
+                  NodeSlider(
+                    value: options.indexOf(minutes).toDouble(),
+                    min: 0,
+                    max: (options.length - 1).toDouble(),
+                    divisions: options.length - 1,
+                    label: label,
+                    onChanged: (value) =>
+                        setState(() => minutes = options[value.round()]),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [const Text('关闭'), Text(_format(options.last))],
+                  ),
+                  TextButton(
+                    onPressed: () => _showTimePickerDialog(
+                      context,
+                      onCountdown,
+                      (change) => setState(() {
+                        change();
+                        minutes = _durationInMinutes;
+                        options = {
+                          ...presets,
+                          minutes,
+                        }.sorted(Comparable.compare);
+                      }),
+                      isAudio: true,
+                    ),
+                    child: const Text('自定义时间'),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('等待当前音频播放完毕'),
+                    subtitle: const Text('专栏听书将在当前片段结束后执行'),
+                    value: _waitUntilCompleted,
+                    onChanged: (value) =>
+                        setState(() => _waitUntilCompleted = value),
+                  ),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      for (final type in _ShutdownType.values)
+                        ChoiceChip(
+                          label: Text(
+                            type == _ShutdownType.pause ? '暂停音频' : '退出 App',
+                          ),
+                          selected: _shutdownType == type,
+                          onSelected: (_) =>
+                              setState(() => _shutdownType = type),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () {
+                      _startShutdownTimer(minutes, isAudio: true);
+                      Navigator.pop(context);
+                    },
+                    child: Text(minutes == 0 ? '关闭定时' : '开始计时'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void showScheduleExitDialog(
     BuildContext context, {
     required bool isFullScreen,
     bool isLive = false,
+    bool isAudio = false,
   }) {
+    if (isAudio) {
+      _showAudioTimerDialog(context);
+      return;
+    }
     const Set<int> scheduleTimeMinutes = {0, 15, 30, 45, 60};
     const TextStyle titleStyle = TextStyle(fontSize: 14);
     if (isLive) {

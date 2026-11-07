@@ -225,6 +225,8 @@ Future<void> onPushHistory(HistoryItemModel item) async {
             ? '${item.history.cid}'
             : '${item.history.oid}',
         'type': 'read',
+        if (item.title?.isNotEmpty == true) 'title': item.title!,
+        if (item.cover?.isNotEmpty == true) 'cover': item.cover!,
       },
     );
   } else if (business == 'live') {

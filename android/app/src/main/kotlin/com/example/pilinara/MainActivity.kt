@@ -1,6 +1,8 @@
 package com.example.pilinara
 
 import android.content.res.Configuration
+import android.content.Intent
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager.LayoutParams
@@ -17,6 +19,19 @@ class MainActivity : AudioServiceActivity() {
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "PiliNara")
         methodChannel.setMethodCallHandler { call, result ->
             when (call.method) {
+                "openTtsSettings" -> {
+                    try {
+                        startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+                        result.success(null)
+                    } catch (_: Exception) {
+                        try {
+                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            result.success(null)
+                        } catch (_: Exception) {
+                            result.error("UNAVAILABLE", "系统未提供文字转语音设置入口", null)
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

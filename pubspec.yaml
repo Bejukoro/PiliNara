@@ -66,6 +66,8 @@ dependencies:
     git:
       url: https://github.com/My-Responsitories/catcher_2.git
       ref: dev
+  flutter_tts: 4.2.5
+  flutter_secure_storage: 11.2.0
   characters: ^1.4.1
   clipboard: ^3.0.14
   chat_bottom_container:
@@ -291,6 +293,9 @@ flutter:
     - assets/danmaku_merge/pinyin_dict.txt
     - assets/danmaku_merge/NOTICE.pakku
     - assets/cdn_nodes.json
+    - assets/fonts/LxgwNeoZhiSong-LICENSE.md
+    - assets/fonts/LxgwNeoXiHei-LICENSE.md
+    - assets/fonts/IPA-REPLACEMENT.txt
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
 
@@ -301,3 +306,10 @@ flutter:
     - family: custom_icon
       fonts:
         - asset: assets/fonts/custom_icon.ttf
+
+    - family: LXGWNeoZhiSongPlus
+      fonts:
+        - asset: assets/fonts/LXGWNeoZhiSongPlus.ttf
+    - family: LXGWNeoXiHeiPlus
+      fonts:
+        - asset: assets/fonts/LXGWNeoXiHeiPlus.ttf

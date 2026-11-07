@@ -89,14 +89,21 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void>? Function()? onPlay;
   Future<void>? Function()? onPause;
+  Future<void>? Function()? onStop;
   Future<void>? Function(Duration position)? onSeek;
   void Function()? onSkipToNext;
   void Function()? onSkipToPrevious;
-  String? currentHeroTag;
+  String? _currentHeroTag;
+  String? get currentHeroTag => _currentHeroTag;
+  set currentHeroTag(String? value) {
+    if (_currentHeroTag != value) onStop = null;
+    _currentHeroTag = value;
+  }
 
   void _clearCallbacks() {
     onPlay = null;
     onPause = null;
+    onStop = null;
     onSeek = null;
     onSkipToNext = null;
     onSkipToPrevious = null;
@@ -127,6 +134,10 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToNext() async {
+    if (onStop != null && onSkipToNext != null) {
+      onSkipToNext!();
+      return;
+    }
     final playOwner = PlPlayerController.playOwner;
     if (playOwner != null && playOwner.type == null) {
       return;
@@ -162,6 +173,10 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> skipToPrevious() async {
+    if (onStop != null && onSkipToPrevious != null) {
+      onSkipToPrevious!();
+      return;
+    }
     final playOwner = PlPlayerController.playOwner;
     if (playOwner != null && playOwner.type == null) {
       return;
@@ -208,6 +223,12 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         Future.syncValue(null);
   }
 
+  @override
+  Future<void> stop() async {
+    await onStop?.call();
+    await super.stop();
+  }
+
   CommonIntroController? _findIntroController() {
     final playOwner = PlPlayerController.playOwner;
     if (playOwner == null) {
@@ -232,7 +253,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     return null;
   }
-
 
   @override
   Future<void> seek(Duration position) {

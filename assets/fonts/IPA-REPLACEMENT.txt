@@ -1,0 +1,13 @@
+内置专栏字体
+霞鹜新致宋 Plus v1.070
+https://github.com/lxgw/LxgwNeoZhiSong/releases/tag/v1.070
+霞鹜新晰黑 Plus v1.308
+https://github.com/lxgw/LxgwNeoXiHei/releases/tag/v1.308
+字体文件保持上游原样，采用 IPA Font License 1.0，全文随应用附带。
+
+替换为原始 IPA 字体
+1. 在浏览器打开 https://moji.or.jp/ipafont/ipafontdownload/ 下载原始 IPA 字体。
+2. 解压下载的字体包，宋体可选 IPAexMincho，黑体可选 IPAexGothic。
+3. 返回专栏阅读设置，点击“选择本地字体（TTF / OTF / TTC）”，导入对应 TTF 文件。
+4. 在字体下拉选项中选择刚导入的字体，即以原始 IPA 字体替代内置字体。设置会自动保存。
+原始 IPA 字体为日文字体，汉字及标点字形可能与中文字体不同。

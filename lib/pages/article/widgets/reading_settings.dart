@@ -1,5 +1,9 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry;
+import 'package:flutter/services.dart' show rootBundle;
+
 import 'package:PiliPlus/pages/setting/slide_color_picker.dart';
 import 'package:PiliPlus/utils/font_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -9,14 +13,19 @@ import 'package:material_ui/material_ui.dart';
 
 class ArticleReadingSettings {
   const ArticleReadingSettings({
-    this.fontSize = 16,
-    this.lineHeight = 1.6,
-    this.paragraphSpacing = 10,
-    this.pageMargin = 12,
+    this.fontSize = 17,
+    this.lineHeight = 1.5,
+    this.paragraphSpacing = 16,
+    this.pageMargin = 24,
     this.fontFamily,
     this.lightBackground,
     this.darkBackground,
   });
+
+  static const bundledFonts = <String, String>{
+    'LXGWNeoZhiSongPlus': '霞鹜新致宋 Plus',
+    'LXGWNeoXiHeiPlus': '霞鹜新晰黑 Plus',
+  };
 
   final double fontSize;
   final double lineHeight;
@@ -157,7 +166,26 @@ class ArticleReadingSettings {
     );
   }
 
+  static bool _licensesRegistered = false;
+
+  static void _registerFontLicenses() {
+    if (_licensesRegistered) return;
+    _licensesRegistered = true;
+    LicenseRegistry.addLicense(() async* {
+      final instructions = await rootBundle.loadString(
+        'assets/fonts/IPA-REPLACEMENT.txt',
+      );
+      for (final name in ['LxgwNeoZhiSong', 'LxgwNeoXiHei']) {
+        final license = await rootBundle.loadString(
+          'assets/fonts/$name-LICENSE.md',
+        );
+        yield LicenseEntryWithLineBreaks([name], '$license\n\n$instructions');
+      }
+    });
+  }
+
   static ArticleReadingSettings load() {
+    _registerFontLicenses();
     final value = GStorage.setting.get(SettingBoxKey.articleReadingSettings);
     final data = value is Map ? value : const {};
     double number(String key, double fallback, double min, double max) {
@@ -178,14 +206,15 @@ class ArticleReadingSettings {
     return ArticleReadingSettings(
       lightBackground: color('lightBackground'),
       darkBackground: color('darkBackground'),
-      fontSize: number('fontSize', 16, 12, 32),
-      lineHeight: number('lineHeight', 1.6, 1.0, 2.5),
-      paragraphSpacing: number('paragraphSpacing', 10, 0, 32),
-      pageMargin: number('pageMargin', 12, 0, 48),
+      fontSize: number('fontSize', 17, 12, 32),
+      lineHeight: number('lineHeight', 1.5, 1.0, 2.5),
+      paragraphSpacing: number('paragraphSpacing', 16, 0, 32),
+      pageMargin: number('pageMargin', 24, 0, 48),
       fontFamily:
           family is String &&
-              FontUtils.customFonts.containsKey(family) &&
-              File(FontUtils.customFonts[family]!).existsSync()
+              (bundledFonts.containsKey(family) ||
+                  FontUtils.customFonts.containsKey(family) &&
+                      File(FontUtils.customFonts[family]!).existsSync())
           ? family
           : null,
     );
@@ -211,10 +240,12 @@ class ArticleReadingSettingsPanel extends StatefulWidget {
     super.key,
     required this.settings,
     required this.onChanged,
+    this.onSpeechSettings,
   });
 
   final ArticleReadingSettings settings;
   final ValueChanged<ArticleReadingSettings> onChanged;
+  final VoidCallback? onSpeechSettings;
 
   @override
   State<ArticleReadingSettingsPanel> createState() =>
@@ -413,6 +444,12 @@ class _ArticleReadingSettingsPanelState
                     ),
                   ],
                 ),
+                if (widget.onSpeechSettings != null)
+                  TextButton.icon(
+                    onPressed: widget.onSpeechSettings,
+                    icon: const Icon(Icons.settings_voice),
+                    label: const Text('听书语音设置'),
+                  ),
                 slider(
                   '字号',
                   settings.fontSize,
@@ -451,13 +488,25 @@ class _ArticleReadingSettingsPanelState
                 ),
                 backgroundSection(Brightness.light),
                 backgroundSection(Brightness.dark),
+                const Text('阅读字体'),
+                const SizedBox(height: 8),
                 DropdownButton<String>(
                   isExpanded: true,
-                  value: FontUtils.isCustomFont(settings.fontFamily)
+                  value:
+                      (ArticleReadingSettings.bundledFonts.containsKey(
+                            settings.fontFamily,
+                          ) ||
+                          FontUtils.isCustomFont(settings.fontFamily))
                       ? settings.fontFamily
                       : '',
                   items: [
                     const DropdownMenuItem(value: '', child: Text('跟随应用字体')),
+                    for (final font
+                        in ArticleReadingSettings.bundledFonts.entries)
+                      DropdownMenuItem(
+                        value: font.key,
+                        child: Text(font.value),
+                      ),
                     for (final family in FontUtils.customFonts.keys)
                       DropdownMenuItem(
                         value: family,
@@ -473,6 +522,11 @@ class _ArticleReadingSettingsPanelState
                   onPressed: importing ? null : importFont,
                   icon: const Icon(Icons.font_download_outlined),
                   label: Text(importing ? '正在导入…' : '选择本地字体（TTF / OTF / TTC）'),
+                ),
+                TextButton.icon(
+                  onPressed: () => showLicensePage(context: context),
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text('内置字体许可与原始 IPA 字体替换说明'),
                 ),
                 Container(
                   color: settings

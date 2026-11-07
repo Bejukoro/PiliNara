@@ -18,6 +18,7 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/common/image_type.dart';
 import 'package:PiliPlus/pages/audio/controller.dart';
+import 'package:PiliPlus/pages/audio/widgets/transport_controls.dart';
 import 'package:PiliPlus/pages/audio/volume_button.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
     show showPlayerVolumeDialog;
@@ -157,11 +158,12 @@ class _AudioPageState extends State<AudioPage> {
           IconButton(
             tooltip: '定时关闭',
             onPressed: () => shutdownTimerService
-              ..onPause ??= _controller.onPause
-              ..isPlaying ??= _controller.isPlaying
+              ..onPause = _controller.onPause
+              ..isPlaying = _controller.isPlaying
               ..showScheduleExitDialog(
                 context,
                 isFullScreen: false,
+                isAudio: true,
               ),
             icon: const Icon(Icons.schedule, size: 22),
           ),
@@ -885,48 +887,27 @@ class _AudioPageState extends State<AudioPage> {
   }
 
   Widget _buildControls() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Obx(
-          () => IconButton(
-            onPressed: _showPlaySettings,
-            icon: Icon(
-              size: 26,
-              _controller.playMode.value.icon,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: _controller.playPrev,
-          icon: const Icon(
-            size: 40,
-            Icons.skip_previous_rounded,
-          ),
-        ),
-        IconButton(
-          onPressed: _controller.playOrPause,
-          icon: AnimatedIcon(
-            size: 40,
-            icon: AnimatedIcons.play_pause,
-            progress: _controller.animController,
-          ),
-        ),
-        IconButton(
-          onPressed: _controller.playNext,
-          icon: const Icon(
-            size: 40,
-            Icons.skip_next_rounded,
-          ),
-        ),
-        IconButton(
-          onPressed: _showPlaylist,
-          icon: const Icon(
+    return AudioTransportControls(
+      animation: _controller.animController,
+      onPrevious: _controller.playPrev,
+      onPlayPause: _controller.playOrPause,
+      onNext: _controller.playNext,
+      leading: Obx(
+        () => IconButton(
+          onPressed: _showPlaySettings,
+          icon: Icon(
             size: 26,
-            Icons.menu_rounded,
+            _controller.playMode.value.icon,
           ),
         ),
-      ],
+      ),
+      trailing: IconButton(
+        onPressed: _showPlaylist,
+        icon: const Icon(
+          size: 26,
+          Icons.menu_rounded,
+        ),
+      ),
     );
   }
 

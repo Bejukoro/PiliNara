@@ -406,19 +406,12 @@ class RenderProgressBar extends RenderBox implements MouseTrackerAnnotation {
        // ignore: prefer_initializing_formals
        _minHeight = minHeight,
        _thumbGlowRadius = thumbGlowRadius,
-       _paintThumbGlow = thumbGlowRadius > thumbRadius,
-       _hitTestSelf =
-           onDragStart != null ||
-           onHoverStart != null ||
-           onHoverUpdate != null ||
-           onHoverEnd != null {
-    if (onDragStart != null) {
-      _drag = _EagerHorizontalDragGestureRecognizer()
-        ..onStart = _onDragStart
-        ..onUpdate = _onDragUpdate
-        ..onEnd = _onDragEnd
-        ..onCancel = _finishDrag;
-    }
+       _paintThumbGlow = thumbGlowRadius > thumbRadius {
+    _drag = _EagerHorizontalDragGestureRecognizer()
+      ..onStart = _onDragStart
+      ..onUpdate = _onDragUpdate
+      ..onEnd = _onDragEnd
+      ..onCancel = _finishDrag;
     if (!_userIsDraggingThumb) {
       _thumbValue = _proportionOfTotal(_progress);
     }
@@ -766,14 +759,19 @@ class RenderProgressBar extends RenderBox implements MouseTrackerAnnotation {
   @override
   double computeMaxIntrinsicHeight(double width) => _heightWhenNoLabels();
 
-  final bool _hitTestSelf;
+  bool get _hitTestSelf =>
+      onSeek != null ||
+      onDragStart != null ||
+      onHoverStart != null ||
+      onHoverUpdate != null ||
+      onHoverEnd != null;
   @override
   bool hitTestSelf(Offset position) => _hitTestSelf;
 
   @override
   void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
     assert(debugHandleEvent(event, entry));
-    if (event is PointerDownEvent) {
+    if (event is PointerDownEvent && (onSeek != null || onDragStart != null)) {
       _drag?.addPointer(event);
     } else if (event is PointerHoverEvent) {
       _onHoverUpdate(event);

@@ -23,6 +23,11 @@ import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/models/dynamics/article_content_model.dart' show Pic;
 import 'package:PiliPlus/models/dynamics/result.dart' show DynamicStat, Tribee;
 import 'package:PiliPlus/pages/article/controller.dart';
+import 'package:PiliPlus/pages/article/listen/speech_text.dart';
+import 'package:PiliPlus/pages/article/listen/view.dart';
+import 'package:PiliPlus/pages/article/listen/settings.dart';
+import 'package:PiliPlus/pages/article/listen/settings_view.dart';
+import 'package:PiliPlus/pages/article/listen/synthesizer.dart';
 import 'package:PiliPlus/pages/article/widgets/article_ops.dart';
 import 'package:PiliPlus/pages/article/widgets/html_render.dart';
 import 'package:PiliPlus/pages/article/widgets/opus_content.dart';
@@ -87,6 +92,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
       ),
       builder: (_) => ArticleReadingSettingsPanel(
         settings: readingSettings,
+        onSpeechSettings: _showSpeechSettings,
         onChanged: (value) {
           setState(() => readingSettings = value);
           value.save().catchError((Object error) {
@@ -98,6 +104,32 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
   }
 
   UniqueKey? _centerKey;
+
+  Future<void> _showSpeechSettings() async {
+    final synthesizer = ArticleSynthesizer();
+    SmartDialog.showLoading(msg: '正在打开语音设置…');
+    try {
+      final settings = await ArticleSpeechSettings.load();
+      await SmartDialog.dismiss(status: SmartStatus.loading);
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => ArticleSpeechSettingsPage(
+            settings: settings,
+            synthesizer: synthesizer,
+            onSave: (value) => value.save(),
+          ),
+        ),
+      );
+    } catch (_) {
+      SmartDialog.showToast('语音设置加载失败，请重试');
+    } finally {
+      await SmartDialog.dismiss(status: SmartStatus.loading);
+      await synthesizer.dispose();
+    }
+  }
+
   bool get reverse => _centerKey != null;
 
   @override
@@ -344,13 +376,19 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
         }
 
         final isOpus = controller.type != 'read';
+        final headerPics = modules?.moduleTop?.display?.album?.pics;
+        final cover = controller.summary.cover;
 
         return SliverMainAxisGroup(
           slivers: [
-            if (isOpus)
-              if (modules?.moduleTop?.display?.album?.pics case final pics?
-                  when pics.isNotEmpty)
-                SliverToBoxAdapter(child: _buildImageGallery(pics)),
+            if (headerPics != null && headerPics.isNotEmpty)
+              SliverToBoxAdapter(child: _buildImageGallery(headerPics))
+            else if (cover != null && cover.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _buildImageGallery([
+                  Pic.fromJson({'url': cover}),
+                ]),
+              ),
             if (controller.summary.title != null)
               SliverToBoxWithVisibilityAdapter(
                 onVisibilityChanged: controller.showTitle.call,
@@ -442,6 +480,34 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
       return const SizedBox.shrink();
     }),
     actions: [
+      IconButton(
+        tooltip: '听书',
+        icon: const Icon(Icons.headphones_outlined),
+        onPressed: () {
+          if (!controller.isLoaded.value) return;
+          final chunks = articleSpeechChunks(
+            title: controller.summary.title,
+            opus: controller.opus,
+            ops: controller.articleData?.ops,
+            content: controller.articleData?.content,
+          );
+          if (chunks.isEmpty) {
+            SmartDialog.showToast('当前专栏没有可朗读的正文');
+            return;
+          }
+          Get.to(
+            () => ArticleListeningPage(
+              chunks: chunks,
+              collectionId: controller.opusData?.modules.moduleCollection?.id,
+              articleId: controller.commentId,
+              opusId: controller.type == 'opus' ? controller.id : null,
+              title: controller.summary.title ?? '专栏听书',
+              cover: controller.summary.cover,
+              author: controller.summary.author?.name,
+            ),
+          );
+        },
+      ),
       IconButton(
         tooltip: '阅读设置',
         onPressed: _showReadingSettings,

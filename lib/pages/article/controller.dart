@@ -13,7 +13,6 @@ import 'package:PiliPlus/pages/common/dyn/common_dyn_controller.dart';
 import 'package:PiliPlus/pages/common/reply/reply_controller.dart';
 import 'package:PiliPlus/pages/video/pay_coins/view.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/app_scheme.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -30,6 +29,8 @@ class ArticleController extends CommonDynController
         DynReplyLocateMixin {
   late String id;
   late String type;
+  String? _entryTitle;
+  String? _entryCover;
 
   late String url;
   late int commentId;
@@ -71,6 +72,8 @@ class ArticleController extends CommonDynController
     final params = Get.parameters;
     id = params['id']!;
     type = params['type']!;
+    _entryTitle = params['title'];
+    _entryCover = params['cover'];
 
     // to opus
     if (type == 'read') {
@@ -78,7 +81,12 @@ class ArticleController extends CommonDynController
         url,
       ) {
         if (url != null) {
-          final opusId = PiliScheme.uriDigitRegExp.firstMatch(url)?.group(1);
+          final uri = Uri.tryParse(url);
+          final opusId =
+              uri != null &&
+                  (uri.host == 'www.bilibili.com' || uri.host == 'bilibili.com')
+              ? RegExp(r'^/opus/(\d+)/?$').firstMatch(uri.path)?.group(1)
+              : null;
           if (opusId != null) {
             id = opusId;
             type = 'opus';
@@ -101,37 +109,44 @@ class ArticleController extends CommonDynController
     _queryContent();
   }
 
-  Future<bool> queryOpus(String opusId) async {
+  Future<bool> queryOpus(String opusId, {bool allowFallback = true}) async {
     final res = await DynamicsHttp.opusDetail(opusId: opusId);
     if (res case Success(:final response)) {
       //fallback
       if (response.fallback?.id != null) {
+        if (!allowFallback) return false;
         id = response.fallback!.id!;
         type = 'read';
-        init();
-        return false;
+        url = 'https://www.bilibili.com/read/cv$id';
+        commentId = int.parse(id);
+        commentType = 12;
+        return queryRead(commentId, resolveOpus: false);
       }
       opusData = response;
       commentType = response.basic!.commentType!;
       commentId = int.parse(response.basic!.commentIdStr!);
-      if (showDynActionBar) {
-        if (response.modules.moduleStat != null) {
-          stats.value = response.modules.moduleStat;
-        } else {
-          getArticleInfo();
-        }
+      if (showDynActionBar && response.modules.moduleStat != null) {
+        stats.value = response.modules.moduleStat;
       }
       summary
         ..author ??= response.modules.moduleAuthor
-        ..title ??= response.modules.moduleTag?.text;
+        ..title ??= response.modules.moduleTag?.text
+        ..cover ??=
+            response.modules.moduleTop?.display?.album?.pics?.firstOrNull?.url;
+      if (commentType == 12 &&
+          (showDynActionBar ||
+              summary.title == null ||
+              summary.cover == null)) {
+        await getArticleInfo().catchError((Object error) => false);
+      }
       return true;
     } else {
-      loadingState.value = res as Error;
+      if (allowFallback) loadingState.value = res as Error;
       return false;
     }
   }
 
-  Future<bool> queryRead(int cvid) async {
+  Future<bool> queryRead(int cvid, {bool resolveOpus = true}) async {
     final res = await DynamicsHttp.articleView(cvId: cvid);
     if (res case Success(:final response)) {
       articleData = response;
@@ -140,8 +155,22 @@ class ArticleController extends CommonDynController
         ..title ??= response.title
         ..cover ??= response.originImageUrls?.firstOrNull;
 
-      if (showDynActionBar) {
-        getArticleInfo();
+      final dynId = response.dynIdStr;
+      if (resolveOpus && dynId != null && dynId.isNotEmpty) {
+        if (await queryOpus(
+          dynId,
+          allowFallback: false,
+        ).catchError((Object error) => false)) {
+          id = dynId;
+          type = 'opus';
+          url = 'https://www.bilibili.com/opus/$id';
+        }
+      }
+      if (opusData == null &&
+          (showDynActionBar ||
+              summary.title == null ||
+              summary.cover == null)) {
+        await getArticleInfo().catchError((Object error) => false);
       }
       return true;
     } else {
@@ -184,14 +213,19 @@ class ArticleController extends CommonDynController
 
   // 请求动态内容
   Future<void> _queryContent() async {
+    final bool loaded;
     if (type != 'read') {
-      isLoaded.value = await queryOpus(id);
+      loaded = await queryOpus(id);
     } else {
       commentId = int.parse(id);
       commentType = 12;
-      isLoaded.value = await queryRead(commentId);
+      loaded = await queryRead(commentId);
     }
-    if (isLoaded.value) {
+    if (loaded) {
+      summary
+        ..title ??= _entryTitle
+        ..cover ??= _entryCover;
+      isLoaded.value = true;
       queryData();
       if (Accounts.heartbeat.isLogin && !Pref.historyPause) {
         VideoHttp.historyReport(aid: commentId, type: 5);
