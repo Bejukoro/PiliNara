@@ -27,6 +27,14 @@
 
 本节介绍 [Bejukoro/PiliNara](https://github.com/Bejukoro/PiliNara) 在 [Starfallan/PiliNara](https://github.com/Starfallan/PiliNara) 基础上新增的功能；下方的项目说明和改动说明保留原仓库内容。
 
+### 界面展示
+
+<div align="center">
+  <img src="assets/screenshots/fork-article-reading.jpg" width="32%" alt="专栏阅读页面" />
+  <img src="assets/screenshots/fork-article-settings.jpg" width="32%" alt="专栏阅读设置" />
+  <img src="assets/screenshots/fork-article-listening.jpg" width="32%" alt="专栏听书播放页面" />
+</div>
+
 ### 专栏阅读
 
 - 可调整字号、行间距、段间距和左右页边距，并支持选择本地字体。
