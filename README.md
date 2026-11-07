@@ -23,6 +23,27 @@
 
 <br/>
 
+## Bejukoro Fork：专栏阅读与听书
+
+本节介绍 [Bejukoro/PiliNara](https://github.com/Bejukoro/PiliNara) 在 [Starfallan/PiliNara](https://github.com/Starfallan/PiliNara) 基础上新增的功能；下方的项目说明和改动说明保留原仓库内容。
+
+### 专栏阅读
+
+- 可调整字号、行间距、段间距和左右页边距，并支持选择本地字体。
+- 内置 [霞鹜新致宋 Plus](https://github.com/lxgw/LxgwNeoZhiSong) 和 [霞鹜新晰黑 Plus](https://github.com/lxgw/LxgwNeoXiHei) 两款阅读字体；字体许可文件随项目附带。
+- 亮色和暗色模式可分别设置阅读背景，提供暖纸、护眼绿和 OLED 纯黑等预设，也可自定义颜色；阅读页面的顶栏和底栏随背景统一显示。
+- 改善从历史记录进入专栏时的正文及文章信息加载。
+
+### 专栏听书
+
+- 支持系统 TTS、千问语音和微软演示语音。系统 TTS 取决于设备安装的语音引擎；千问需要自行填写 API Key，模型和音色可选择或手动填写。微软演示接口无需自行填写凭据，服务可用性取决于第三方接口。
+- 播放页提供全文滚动与当前朗读内容突出显示、封面大小切换、上一段／下一段、倍速、定时关闭，以及同文集文章列表。
+- 语音按段合成并预载后续内容；微软演示语音会合并完整段落以减少调用次数。全文总时长为估算值，并随实际播放逐步校准。云端合成可能产生调用或额度消耗，具体以服务提供方为准。
+
+本 Fork 的改动目前以源码形式提供；下方原项目的 Releases 链接指向上游仓库，不代表包含本 Fork 的新增功能。
+
+---
+
 ## 项目说明
 - 本项目PiliNara是基于[PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus)进行修改的,做了一些自用的改动.
 - 本仓库保留了PiliPlus的所有功能,并在此基础上进行了部分自用的优化和调整.支持导入PiliPlus的设置和数据，也应该支持了导出设置和数据到PiliPlus.
