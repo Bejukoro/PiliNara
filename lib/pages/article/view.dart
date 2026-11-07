@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
+
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
@@ -79,6 +81,7 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: theme.colorScheme.surface,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * .9,
       ),
@@ -126,19 +129,43 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
 
   @override
   Widget build(BuildContext context) {
-    return fabAnimWrapper(
-      child: SimpleScaffold(
-        appBar: _buildAppBar(),
-        body: Padding(
-          padding: .only(left: padding.left, right: padding.right),
-          child: _buildPage(),
-        ),
-        fab: SlideTransition(
-          position: fabAnimation,
-          child: _buildBottom(),
+    final baseTheme = Theme.of(context);
+    final readerTheme = readingSettings.readerTheme(baseTheme);
+    theme = readerTheme;
+    final page = Theme(
+      data: readerTheme,
+      child: Builder(
+        builder: (_) => fabAnimWrapper(
+          child: SimpleScaffold(
+            backgroundColor: readingSettings.backgroundFor(
+              baseTheme.brightness,
+            ),
+            appBar: _buildAppBar(),
+            body: Padding(
+              padding: .only(left: padding.left, right: padding.right),
+              child: _buildPage(),
+            ),
+            fab: SlideTransition(
+              position: fabAnimation,
+              child: _buildBottom(),
+            ),
+          ),
         ),
       ),
     );
+    final overlay =
+        readerTheme.appBarTheme.systemOverlayStyle ??
+        (baseTheme.brightness == Brightness.dark
+                ? SystemUiOverlayStyle.light
+                : SystemUiOverlayStyle.dark)
+            .copyWith(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: Colors.transparent,
+              systemNavigationBarDividerColor: Colors.transparent,
+              systemStatusBarContrastEnforced: false,
+              systemNavigationBarContrastEnforced: false,
+            );
+    return AnnotatedRegion<SystemUiOverlayStyle>(value: overlay, child: page);
   }
 
   Widget _buildPage() {
@@ -287,6 +314,9 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
                   html: controller.articleData!.content!,
                   maxWidth: maxWidth,
                   readingSettings: readingSettings,
+                  readingBackground: readingSettings.backgroundFor(
+                    Theme.of(context).brightness,
+                  ),
                 ),
               );
             } else {
@@ -299,6 +329,9 @@ class _ArticlePageState extends CommonDynPageState<ArticlePage>
                     element: res.body!.children[index],
                     maxWidth: maxWidth,
                     readingSettings: readingSettings,
+                    readingBackground: readingSettings.backgroundFor(
+                      Theme.of(this.context).brightness,
+                    ),
                   );
                 },
                 separatorBuilder: (_, _) =>

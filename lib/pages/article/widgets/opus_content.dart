@@ -272,8 +272,8 @@ class OpusContent extends StatelessWidget {
         min = tmp;
       }
 
-      // WCAG AA : (max + 0.05) / (min + 0.05) > 3.0
-      if (max > 3.0 * min + 0.1) {
+      // Keep authored text colors readable on the selected reading background.
+      if ((max + 0.05) / (min + 0.05) >= 4.5) {
         color = tmpColor;
       }
     }

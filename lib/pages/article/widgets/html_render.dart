@@ -11,6 +11,40 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:material_ui/material_ui.dart';
 
+class _ReadingContrastExtension extends HtmlExtension {
+  const _ReadingContrastExtension(this.background);
+
+  final Color background;
+
+  @override
+  Set<String> get supportedTags => const {};
+
+  @override
+  bool matches(ExtensionContext context) =>
+      context.currentStep == CurrentStep.preProcessing &&
+      identical(context.node, context.parser.htmlData);
+
+  @override
+  void beforeProcessing(ExtensionContext context) {
+    final foreground = Theme.of(context.buildContext!).colorScheme.onSurface;
+    void adjust(StyledElement element, Color inheritedBackground) {
+      final effectiveBackground = Color.alphaBlend(
+        element.style.backgroundColor ?? Colors.transparent,
+        inheritedBackground,
+      );
+      element.style.color = ArticleReadingSettings.readableOn(
+        effectiveBackground,
+        element.style.color ?? foreground,
+      );
+      for (final child in element.children) {
+        adjust(child, effectiveBackground);
+      }
+    }
+
+    adjust(context.styledElement!, background);
+  }
+}
+
 Widget htmlRender({
   required BuildContext context,
   dom.Element? element,
@@ -18,10 +52,12 @@ Widget htmlRender({
   int? imgCount,
   List<String>? imgList,
   required double maxWidth,
+  Color? readingBackground,
   ArticleReadingSettings readingSettings = const ArticleReadingSettings(),
 }) {
   // if (kDebugMode) debugPrint('htmlRender');
   final extensions = [
+    if (readingBackground != null) _ReadingContrastExtension(readingBackground),
     TagExtension(
       tagsToExtend: <String>{'img'},
       builder: (ExtensionContext extensionContext) {
