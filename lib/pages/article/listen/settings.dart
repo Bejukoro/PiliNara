@@ -13,6 +13,8 @@ enum SpeechProvider {
 }
 
 class ArticleSpeechSettings {
+  static const defaultQwenPrefetchParagraphs = 5;
+  static const maxQwenPrefetchParagraphs = 15;
   SpeechProvider provider = SpeechProvider.system;
   String systemEngine = '';
   String systemVoice = '';
@@ -21,6 +23,7 @@ class ArticleSpeechSettings {
   String microsoftLocale = 'zh-CN';
   String qwenVoice = 'longzhe_v3.1';
   String qwenModel = 'qwen-audio-3.1-tts-flash';
+  int qwenPrefetchParagraphs = defaultQwenPrefetchParagraphs;
   String qwenEndpoint =
       'wss://cn-beijing.maas.qianwenaiapi.com/api-ws/v1/inference';
   double rate = 1;
@@ -64,6 +67,13 @@ class ArticleSpeechSettings {
       if (result.qwenModel == 'qwen-audio-3.1-tts-flash' &&
           result.qwenVoice == 'longanhuan_v3.1') {
         result.qwenVoice = 'longzhe_v3.1';
+      }
+      if (data['qwenPrefetchParagraphs'] case final num count
+          when count.isFinite) {
+        result.qwenPrefetchParagraphs = count.toInt().clamp(
+          0,
+          maxQwenPrefetchParagraphs,
+        );
       }
       if (data['rate'] case final num rate when rate.isFinite) {
         result.rate = rate.toDouble().clamp(.5, 2);
@@ -109,6 +119,10 @@ class ArticleSpeechSettings {
       'qwenVoice': qwenVoice,
       'qwenModel': qwenModel,
       'qwenEndpoint': qwenEndpoint,
+      'qwenPrefetchParagraphs': qwenPrefetchParagraphs.clamp(
+        0,
+        maxQwenPrefetchParagraphs,
+      ),
       'rate': rate,
     });
   }

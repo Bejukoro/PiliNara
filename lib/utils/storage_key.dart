@@ -2,6 +2,10 @@
 
 abstract final class SettingBoxKey {
   static const String articleReadingSettings = 'articleReadingSettings';
+  static const String articleSpeechCacheLimitMb = 'articleSpeechCacheLimitMb';
+  static const String articleSpeechQwenCatalog = 'articleSpeechQwenCatalog';
+  static const String articleSpeechMicrosoftDemoCatalog =
+      'articleSpeechMicrosoftDemoCatalog';
   static const String btmProgressBehavior = 'btmProgressBehavior',
       defaultVideoQa = 'defaultVideoQa',
       defaultVideoQaCellular = 'defaultVideoQaCellular',

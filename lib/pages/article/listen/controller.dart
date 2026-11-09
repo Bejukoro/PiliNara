@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:PiliPlus/pages/article/listen/settings.dart';
+import 'package:PiliPlus/pages/article/listen/speech_cache.dart';
 import 'package:PiliPlus/pages/article/listen/speech_text.dart';
 import 'package:PiliPlus/pages/article/listen/synthesizer.dart';
 import 'package:PiliPlus/services/service_locator.dart';
@@ -35,6 +36,7 @@ class ArticleListeningController extends ChangeNotifier {
   bool _settingsChanged = false;
   int _paragraphOf(int segment) => paragraphIndexes?[segment] ?? segment;
   final synthesizer = ArticleSynthesizer();
+  final _persistentCache = ArticleSpeechCache();
   final _playerFuture = Player.create(
     configuration: PlayerConfiguration(
       options: {
@@ -341,10 +343,10 @@ class ArticleListeningController extends ChangeNotifier {
         final path = '${_directory!.path}/$target-$generation.$extension';
         var file = _cache[target];
         if (file == null || !file.existsSync()) {
-          file = await synthesizer.synthesize(
-            chunks[target],
-            settings,
+          file = await _synthesizeWithCache(
+            target,
             path,
+            isRelevant: () => !_closed && generation == _generation,
             onStatus: (value) {
               if (_closed || generation != _generation) return;
               status = value;
@@ -423,7 +425,14 @@ class ArticleListeningController extends ChangeNotifier {
     if (_closed || _settingsOpen || loading || !_wanted || _prefetch != null) {
       return;
     }
-    final lastParagraph = _paragraphOf(index) + 2;
+    final lastParagraph =
+        _paragraphOf(index) +
+        (settings.provider == SpeechProvider.qwen
+            ? settings.qwenPrefetchParagraphs.clamp(
+                0,
+                ArticleSpeechSettings.maxQwenPrefetchParagraphs,
+              )
+            : 2);
     final microsoft = settings.provider == SpeechProvider.microsoftDemo;
     int? target;
     for (
@@ -453,10 +462,10 @@ class ArticleListeningController extends ChangeNotifier {
         final extension = settings.provider == SpeechProvider.microsoftDemo
             ? 'mp3'
             : 'wav';
-        final file = await synthesizer.synthesize(
-          chunks[segment],
-          settings,
+        final file = await _synthesizeWithCache(
+          segment,
           '${_directory!.path}/prefetch-$revision-$segment.$extension',
+          isRelevant: () => _prefetchRelevant(segment, revision),
         );
         if (_prefetchRelevant(segment, revision)) _cache[segment] = file;
       } catch (_) {
@@ -477,6 +486,104 @@ class ArticleListeningController extends ChangeNotifier {
     unawaited(task.whenComplete(_preloadNext));
   }
 
+  Future<File> _synthesizeWithCache(
+    int segment,
+    String destination, {
+    required bool Function() isRelevant,
+    void Function(String)? onStatus,
+  }) async {
+    String? engine;
+    String? voice;
+    var cacheable = true;
+    if (settings.provider == SpeechProvider.system) {
+      try {
+        // Android exposes the actual default engine and voice. Resolve both
+        // before lookup and synthesize with that same explicit voice.
+        if (!Platform.isAndroid) {
+          cacheable = false;
+        } else {
+          engine = settings.systemEngine.isNotEmpty
+              ? settings.systemEngine
+              : await synthesizer.system.getDefaultEngine.timeout(
+                  const Duration(seconds: 5),
+                ) as String?;
+          if (engine == null || engine.isEmpty) {
+            cacheable = false;
+          } else {
+            await synthesizer
+                .useSystemEngine(engine)
+                .timeout(const Duration(seconds: 5));
+            voice = settings.systemVoice;
+            if (voice.isEmpty) {
+              final fallback = await synthesizer.system.getDefaultVoice.timeout(
+                const Duration(seconds: 5),
+              );
+              if (fallback is Map &&
+                  fallback['name'] is String &&
+                  fallback['locale'] is String &&
+                  (fallback['locale'] as String)
+                          .replaceAll('_', '-')
+                          .toLowerCase() ==
+                      settings.systemLocale
+                          .replaceAll('_', '-')
+                          .toLowerCase()) {
+                voice = fallback['name'] as String;
+              }
+            }
+            if (voice.isEmpty) cacheable = false;
+          }
+        }
+      } catch (_) {
+        cacheable = false;
+      }
+    }
+    if (!isRelevant()) throw StateError('已取消合成');
+    final extension = settings.provider == SpeechProvider.microsoftDemo
+        ? 'mp3'
+        : 'wav';
+    final key = cacheable
+        ? ArticleSpeechCache.keyFor(
+            chunks[segment],
+            settings,
+            systemEngine: engine,
+            systemVoice: voice,
+          )
+        : null;
+    if (key != null) {
+      try {
+        final cached = await _persistentCache.restore(
+          key,
+          extension,
+          destination,
+        );
+        if (!isRelevant()) throw StateError('已取消合成');
+        if (cached != null) {
+          onStatus?.call('正在使用本地语音缓存');
+          return cached;
+        }
+      } on FileSystemException {
+        /* Cache failures must not block playback. */
+      }
+    }
+    if (!isRelevant()) throw StateError('已取消合成');
+    final file = await synthesizer.synthesize(
+      chunks[segment],
+      settings,
+      destination,
+      onStatus: onStatus,
+      resolvedSystemEngine: cacheable ? engine : null,
+      resolvedSystemVoice: cacheable ? voice : null,
+    );
+    if (key != null && isRelevant()) {
+      try {
+        await _persistentCache.store(key, extension, file);
+      } on FileSystemException {
+        /* Playback still works if storage is full. */
+      }
+    }
+    return file;
+  }
+
   bool _prefetchRelevant(int target, int revision) =>
       !_closed &&
       !_settingsOpen &&
@@ -485,7 +592,15 @@ class ArticleListeningController extends ChangeNotifier {
           (target > index &&
               (settings.provider == SpeechProvider.microsoftDemo
                   ? target <= index + 2
-                  : _paragraphOf(target) <= _paragraphOf(index) + 2)));
+                  : _paragraphOf(target) <=
+                        _paragraphOf(index) +
+                            (settings.provider == SpeechProvider.qwen
+                                ? settings.qwenPrefetchParagraphs.clamp(
+                                    0,
+                                    ArticleSpeechSettings
+                                        .maxQwenPrefetchParagraphs,
+                                  )
+                                : 2))));
 
   Future<void> pause({bool interruption = false}) async {
     if (!interruption) _interrupted = false;
@@ -585,6 +700,11 @@ class ArticleListeningController extends ChangeNotifier {
     _settingsOpen = false;
     _preparedForSwitch = false;
     if (_resumeAfterFailedSwitch && !_closed) unawaited(play());
+  }
+
+  void clearSessionCache() {
+    _cache.clear();
+    _prefetchAttempted.clear();
   }
 
   Future<void> prepareSettings() async {

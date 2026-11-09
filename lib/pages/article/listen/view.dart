@@ -86,8 +86,9 @@ class _ArticleListeningPageState extends State<ArticleListeningPage>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted ||
             _highlightedIndex != index ||
-            index >= _lyricKeys.length)
+            index >= _lyricKeys.length) {
           return;
+        }
         final target = _lyricKeys[index].currentContext;
         if (target != null) {
           unawaited(
@@ -123,6 +124,7 @@ class _ArticleListeningPageState extends State<ArticleListeningPage>
             settings: controller.settings,
             synthesizer: controller.synthesizer,
             onSave: controller.applySettings,
+            onCacheCleared: controller.clearSessionCache,
           ),
         ),
       );

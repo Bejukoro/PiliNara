@@ -63,6 +63,8 @@ class ArticleSynthesizer {
     ArticleSpeechSettings settings,
     String path, {
     void Function(String)? onStatus,
+    String? resolvedSystemEngine,
+    String? resolvedSystemVoice,
   }) async {
     final generation = _generation;
     final cancelled = _cancelSignal = Completer<void>();
@@ -73,7 +75,12 @@ class ArticleSynthesizer {
       switch (settings.provider) {
         case SpeechProvider.system:
           onStatus?.call('正在初始化系统语音引擎');
-          await _configureSystem(settings, cancelled.future);
+          await _configureSystem(
+            settings,
+            cancelled.future,
+            resolvedEngine: resolvedSystemEngine,
+            resolvedVoice: resolvedSystemVoice,
+          );
           // Android error callbacks do not resolve awaitSynthCompletion's
           // method result. Observe events explicitly so failures release the queue.
           final completion = Completer<void>();
@@ -213,12 +220,16 @@ class ArticleSynthesizer {
 
   Future<void> _configureSystem(
     ArticleSpeechSettings settings,
-    Future<void> cancelled,
-  ) async {
+    Future<void> cancelled, {
+    String? resolvedEngine,
+    String? resolvedVoice,
+  }) async {
     if (Platform.isAndroid) {
-      final engine = settings.systemEngine.isEmpty
-          ? await _systemCall(system.getDefaultEngine, cancelled) as String?
-          : settings.systemEngine;
+      final engine =
+          resolvedEngine ??
+          (settings.systemEngine.isEmpty
+              ? await _systemCall(system.getDefaultEngine, cancelled) as String?
+              : settings.systemEngine);
       if (engine != null && engine.isNotEmpty) {
         await _systemCall(useSystemEngine(engine), cancelled);
       }
@@ -231,10 +242,11 @@ class ArticleSynthesizer {
       throw StateError('系统 TTS 缺少所选语言，请打开系统 TTS 设置安装语音数据');
     }
     await _systemCall(system.setLanguage(settings.systemLocale), cancelled);
-    if (settings.systemVoice.isNotEmpty) {
+    final voice = resolvedVoice ?? settings.systemVoice;
+    if (voice.isNotEmpty) {
       await _systemCall(
         system.setVoice({
-          'name': settings.systemVoice,
+          'name': voice,
           'locale': settings.systemLocale,
         }),
         cancelled,

@@ -37,6 +37,8 @@ abstract final class GStorage {
   static const nonExportableSettingKeys = {
     SettingBoxKey.aiModelListCache,
     SettingBoxKey.aiModelListCacheTime,
+    SettingBoxKey.articleSpeechQwenCatalog,
+    SettingBoxKey.articleSpeechMicrosoftDemoCatalog,
   };
   static late final Box<Uint8List>? reply;
 
@@ -120,8 +122,13 @@ abstract final class GStorage {
   static Future<List<void>> importAllJsonSettings(
     Map<String, dynamic> map,
   ) {
+    // Older archives may contain voice catalog caches. Do not restore them;
+    // they can be fetched again and are not user settings.
+    final importedSettings = Map<String, dynamic>.from(map[setting.name])
+      ..remove(SettingBoxKey.articleSpeechQwenCatalog)
+      ..remove(SettingBoxKey.articleSpeechMicrosoftDemoCatalog);
     final futures = <Future<void>>[
-      setting.clear().then((_) => setting.putAll(map[setting.name])),
+      setting.clear().then((_) => setting.putAll(importedSettings)),
       video.clear().then((_) => video.putAll(map[video.name])),
     ];
 

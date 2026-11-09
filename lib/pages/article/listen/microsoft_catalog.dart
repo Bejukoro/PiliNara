@@ -1,9 +1,10 @@
 import 'package:PiliPlus/pages/article/listen/voice.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:dio/dio.dart';
 
 class MicrosoftDemoCatalog {
-  static const _key = 'articleSpeechMicrosoftDemoCatalog';
+  static const _key = SettingBoxKey.articleSpeechMicrosoftDemoCatalog;
   static List<SpeechVoice> cached() {
     try {
       return (GStorage.setting.get(_key) as List? ?? [])

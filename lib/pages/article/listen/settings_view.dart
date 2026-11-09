@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 
 import 'package:PiliPlus/pages/article/listen/synthesizer.dart';
+import 'package:PiliPlus/common/widgets/node_slider.dart';
+import 'package:PiliPlus/pages/article/listen/speech_cache.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/pages/article/listen/settings.dart';
 import 'package:PiliPlus/pages/article/listen/qwen_catalog.dart';
 import 'package:PiliPlus/pages/article/listen/voice.dart';
@@ -15,10 +20,12 @@ class ArticleSpeechSettingsPage extends StatefulWidget {
     required this.settings,
     required this.synthesizer,
     required this.onSave,
+    this.onCacheCleared,
   });
   final ArticleSpeechSettings settings;
   final ArticleSynthesizer synthesizer;
   final Future<void> Function(ArticleSpeechSettings) onSave;
+  final void Function()? onCacheCleared;
   @override
   State<ArticleSpeechSettingsPage> createState() =>
       _ArticleSpeechSettingsPageState();
@@ -26,6 +33,11 @@ class ArticleSpeechSettingsPage extends StatefulWidget {
 
 class _ArticleSpeechSettingsPageState extends State<ArticleSpeechSettingsPage> {
   late SpeechProvider provider = widget.settings.provider;
+  final _speechCache = ArticleSpeechCache();
+  late int _cacheLimitMb = ArticleSpeechCache.configuredLimitMb();
+  int? _cacheBytes;
+  bool _cacheBusy = false;
+  String? _cacheError;
   final _fields = <String, TextEditingController>{};
   List<String> engines = [];
   List<Map<String, String>> voices = [];
@@ -40,6 +52,8 @@ class _ArticleSpeechSettingsPageState extends State<ArticleSpeechSettingsPage> {
   late String engine = widget.settings.systemEngine;
   late String voice = widget.settings.systemVoice;
   late String locale = widget.settings.systemLocale;
+  late int qwenPrefetchParagraphs = widget.settings.qwenPrefetchParagraphs
+      .clamp(0, ArticleSpeechSettings.maxQwenPrefetchParagraphs);
 
   @override
   void initState() {
@@ -64,9 +78,75 @@ class _ArticleSpeechSettingsPageState extends State<ArticleSpeechSettingsPage> {
     ]) {
       _fields[key] = TextEditingController(text: values[key] ?? '');
     }
+    unawaited(_refreshCacheSize());
     if (provider == SpeechProvider.system) _loadVoices();
     if (provider == SpeechProvider.qwen) _loadQwenCatalog();
     if (provider == SpeechProvider.microsoftDemo) _loadMicrosoftCatalog();
+  }
+
+  Future<void> _refreshCacheSize() async {
+    try {
+      final bytes = await _speechCache.sizeBytes();
+      if (mounted) {
+        setState(() {
+          _cacheBytes = bytes;
+          _cacheError = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cacheError = '读取缓存大小失败');
+    }
+  }
+
+  String _formatSize(int bytes) {
+    final mb = bytes / (1024 * 1024);
+    return mb >= 1024
+        ? '${(mb / 1024).toStringAsFixed(2)} GB'
+        : '${mb.toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _setCacheLimit(int value) async {
+    try {
+      await GStorage.setting.put(
+        SettingBoxKey.articleSpeechCacheLimitMb,
+        value,
+      );
+      await _speechCache.enforceLimit();
+      await _refreshCacheSize();
+    } catch (_) {
+      if (mounted) setState(() => _cacheError = '保存缓存上限失败，请重试');
+    }
+  }
+
+  Future<void> _clearSpeechCache() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清理语音缓存？'),
+        content: const Text('已缓存的语音将被删除，下次朗读时需要重新合成。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('清理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _cacheBusy = true);
+    try {
+      await _speechCache.clear();
+      widget.onCacheCleared?.call();
+      await _refreshCacheSize();
+    } catch (_) {
+      if (mounted) setState(() => _cacheError = '清理语音缓存失败');
+    } finally {
+      if (mounted) setState(() => _cacheBusy = false);
+    }
   }
 
   Future<void> _loadQwenCatalog() async {
@@ -367,6 +447,7 @@ class _ArticleSpeechSettingsPageState extends State<ArticleSpeechSettingsPage> {
       ..microsoftLocale = value('microsoftLocale')
       ..qwenVoice = value('qwenVoice')
       ..qwenModel = value('qwenModel')
+      ..qwenPrefetchParagraphs = qwenPrefetchParagraphs
       ..qwenEndpoint = value('qwenEndpoint')
       ..credentials = {'qwenKey': value('qwenKey')};
     try {
@@ -540,11 +621,60 @@ class _ArticleSpeechSettingsPageState extends State<ArticleSpeechSettingsPage> {
           if (catalogError != null) Text(catalogError!),
           field('qwenModel', '模型 ID（支持手动填写）'),
           field('qwenVoice', '音色 ID（支持手动填写）'),
+          const SizedBox(height: 12),
+          Text('预缓存后续段落：$qwenPrefetchParagraphs 段'),
+          NodeSlider(
+            min: 0,
+            max: ArticleSpeechSettings.maxQwenPrefetchParagraphs.toDouble(),
+            divisions: ArticleSpeechSettings.maxQwenPrefetchParagraphs,
+            value: qwenPrefetchParagraphs.toDouble(),
+            label: '$qwenPrefetchParagraphs 段',
+            onChanged: busy
+                ? null
+                : (value) =>
+                      setState(() => qwenPrefetchParagraphs = value.round()),
+          ),
+          const Text('设置为 0 时不预缓存后续段落。预缓存更多段落可能提前消耗 API 额度。'),
         ],
         if (provider == SpeechProvider.qwen)
           const Text(
             '使用你在服务商开通的免费额度。额度有效期和上限以服务商控制台为准，超额可能计费。请在控制台设置额度或付费限制。API 凭据保存在系统安全存储中。',
           ),
+        const SizedBox(height: 24),
+        Text('语音缓存', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          '缓存上限：${_cacheLimitMb >= 1024 ? '${(_cacheLimitMb / 1024).toStringAsFixed(2)} GB' : '$_cacheLimitMb MB'}',
+        ),
+        Slider(
+          min: ArticleSpeechCache.minLimitMb.toDouble(),
+          max: ArticleSpeechCache.maxLimitMb.toDouble(),
+          divisions: 231,
+          value: _cacheLimitMb.toDouble(),
+          label: '$_cacheLimitMb MB',
+          onChanged: _cacheBusy
+              ? null
+              : (value) => setState(() => _cacheLimitMb = value.round()),
+          onChangeEnd: (value) => unawaited(_setCacheLimit(value.round())),
+        ),
+        Text(
+          _cacheBytes == null
+              ? '正在计算缓存大小…'
+              : '已使用 ${_formatSize(_cacheBytes!)}；超过上限时自动清理较久未使用的语音。',
+        ),
+        if (_cacheError != null)
+          Text(
+            _cacheError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: _cacheBusy ? null : _clearSpeechCache,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('清理语音缓存'),
+          ),
+        ),
         if (busy)
           const Padding(
             padding: EdgeInsets.all(16),

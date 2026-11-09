@@ -3,13 +3,14 @@ import 'dart:convert';
 import 'package:PiliPlus/pages/article/listen/voice.dart';
 
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:dio/dio.dart';
 import 'package:html/parser.dart' as html;
 
 class QwenVoiceCatalog {
   static const source =
       'https://help.aliyun.com/zh/model-studio/qwen-audio-tts-voice-list';
-  static const _cacheKey = 'articleSpeechQwenCatalog';
+  static const _cacheKey = SettingBoxKey.articleSpeechQwenCatalog;
 
   static List<SpeechVoice> cached() {
     try {
