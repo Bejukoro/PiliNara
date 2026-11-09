@@ -45,7 +45,16 @@ android {
         }
     }
 
-    packagingOptions.jniLibs.useLegacyPackaging = true
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+            providers.gradleProperty("forkReleaseAbi").orNull?.let { selected ->
+                setOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+                    .filter { it != selected }
+                    .forEach { excludes.add("**/$it/**") }
+            }
+        }
+    }
 
     val keyProperties = Properties().also {
         val properties = rootProject.file("key.properties")
