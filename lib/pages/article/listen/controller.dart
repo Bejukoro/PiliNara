@@ -233,19 +233,24 @@ class ArticleListeningController extends ChangeNotifier {
           unawaited(_player.pause());
           _publish();
         }),
-        _session!.interruptionEventStream.listen((event) {
-          if (event.begin) {
-            _interrupted = _wanted;
-            unawaited(pause(interruption: true));
-          } else if (_interrupted &&
-              event.type != AudioInterruptionType.unknown) {
-            _interrupted = false;
-            unawaited(play());
-          }
-        }),
-        _session!.becomingNoisyEventStream.listen((_) {
-          unawaited(pause());
-        }),
+        // The shared audio-session handler owns interruption events when
+        // available; keep local listeners only for unsupported platforms.
+        if (audioSessionHandler == null ||
+            videoPlayerServiceHandler == null) ...[
+          _session!.interruptionEventStream.listen((event) {
+            if (event.begin) {
+              _interrupted = _wanted;
+              unawaited(pause(interruption: true));
+            } else if (_interrupted &&
+                event.type != AudioInterruptionType.unknown) {
+              _interrupted = false;
+              unawaited(play());
+            }
+          }),
+          _session!.becomingNoisyEventStream.listen((_) {
+            unawaited(pause());
+          }),
+        ],
       ]);
       if (!_settingsOpen) {
         await select(0);
@@ -298,6 +303,7 @@ class ArticleListeningController extends ChangeNotifier {
       ..isPlaying = (() => _wanted);
     videoPlayerServiceHandler
       ?..currentHeroTag = _tag
+      ..isPlaying = (() => _wanted)
       ..onPlay = play
       ..onPause = pause
       ..onStop = pause
@@ -819,6 +825,7 @@ class ArticleListeningController extends ChangeNotifier {
     final ownsSession = handler?.currentHeroTag == _tag;
     if (ownsSession) {
       handler!
+        ..isPlaying = null
         ..onPlay = null
         ..onPause = null
         ..onStop = null

@@ -166,4 +166,6 @@ CONTEXT.md
 test*
 /pubspec_overrides.yaml
 .mindfs
-.agents 
+.agents
+!/test/
+!/test/**

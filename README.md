@@ -399,12 +399,13 @@ yay -S pilinara-bin
 <br/>
 <br/>
 
+
 ## Star History
 
-<a href="https://star-history.dera.page/#Starfallan/PiliNara">
+<a href="https://www.star-history.com/?repos=starfallan%2Fpilinara&type=date&legend=bottom-right">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=Starfallan/PiliNara&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=Starfallan/PiliNara" />
-   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=Starfallan/PiliNara" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=starfallan/pilinara&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=starfallan/pilinara&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=starfallan/pilinara&type=date&legend=top-left" />
  </picture>
 </a>

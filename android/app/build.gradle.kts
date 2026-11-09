@@ -37,6 +37,12 @@ android {
         targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        providers.gradleProperty("forkReleaseAbi").orNull?.let { abi ->
+            require(abi in setOf("arm64-v8a", "armeabi-v7a", "x86_64")) {
+                "Unsupported forkReleaseAbi: $abi"
+            }
+            ndk.abiFilters.add(abi)
+        }
     }
 
     packagingOptions.jniLibs.useLegacyPackaging = true
